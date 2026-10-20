@@ -52,11 +52,13 @@ td textarea{min-height:72px;min-width:320px;padding:5px 6px}
 .small{font-size:12px}
 tr.totrow td{font-weight:700;background:#fafbfc}
 summary{cursor:pointer}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1d2330;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;max-width:90vw;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}#toast.err{background:var(--bad)}#toast.ok{background:var(--ok)}
 .imgprev{max-height:70px;max-width:200px;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff}
 #print{display:none}
 @media print{
   body{background:#fff}
-  header,main{display:none!important}
+  header,main,#toast{display:none!important}
   #print{display:block}
   @page{size:A4;margin:10mm}
 }
@@ -195,6 +197,10 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.2.0', date:'2026-10-20', changes:[
+    ['Settings','Connect to Google Sheets & Drive: every bill and salary sheet is saved to your Google Sheet, with its PDF in Google Drive'],
+    ['Bills','PDF link for each bill; all devices share the same data when connected'],
+    ['Salary sheets','PDF of each salary sheet saved to Google Drive']]},
   {v:'1.1.0', date:'2026-10-20', changes:[
     ['Settings','Reset all bills button (keeps buyers, employees, salary sheets and settings; offers a backup first)']]},
   {v:'1.0.0', date:'2026-10-20', changes:[
@@ -218,7 +224,7 @@ function showVersion(){ go('settings'); $('#verCard')?.scrollIntoView({behavior:
 function renderBrand(){
   const s = db.settings;
   $('#bizname').innerHTML = s.logo ? `<img src="${s.logo}" alt="${esc(s.name)}">` : esc(s.name || 'Bills & Payroll');
-  $('#appver').textContent = 'v' + APP_VERSION;
+  $('#appver').textContent = 'v' + APP_VERSION + (cloudOn() ? (S.cloudOk === false ? ' · Google ✕' : S.cloudOk ? ' · Google ✓' : ' · Google …') : '');
 }
 
 /* ---------- app state & routing ---------- */
@@ -294,9 +300,10 @@ function billTable(){
   const list = db.bills.filter(b => !q || (b.no+' '+b.customer).toLowerCase().includes(q))
     .sort((a,b) => b.date.localeCompare(a.date) || b.no.localeCompare(a.no));
   if(!list.length) return `<p class="muted">${db.bills.length ? 'No bills match your search.' : 'No bills yet. Click “+ New bill” to create one.'}</p>`;
-  return `<table><tr><th>Invoice no</th><th>Date</th><th>Buyer</th><th class="n">Total</th><th class="n">Received</th><th class="n">Due</th><th>Status</th><th></th></tr>` +
+  return `<table><tr><th>Invoice no</th><th>Date</th><th>Buyer</th><th class="n">Total</th><th class="n">Received</th><th class="n">Due</th><th>Status</th><th>Drive</th><th></th></tr>` +
     list.map(b => { const c = billCalc(b); return `<tr><td>${esc(b.no)}</td><td>${fmtDate(b.date)}</td><td>${esc(b.customer)}</td>
       <td class="n">${money(c.total)}</td><td class="n">${money(c.paid)}</td><td class="n">${money(c.due)}</td><td><span class="tag ${c.status}">${c.status}</span></td>
+      <td>${b.pdfUrl ? `<a href="${esc(b.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : ''}${b.unsynced && cloudOn() ? ` <button class="b s" onclick="retryBill('${b.id}')" title="Not saved to Google yet">⟳ Retry</button>` : ''}</td>
       <td><button class="b s" onclick="editBill('${b.id}')">Edit</button> <button class="b s" onclick="printBill('${b.id}')">Print</button>
         <button class="b s" onclick="dupBill('${b.id}')" title="New bill with the same details">Copy</button> <button class="b s d" onclick="delBill('${b.id}')">Delete</button></td></tr>`; }).join('') + '</table>';
 }
@@ -337,13 +344,14 @@ function setMonth(m){
 function editBill(id){ editing = structuredClone(db.bills.find(b => b.id === id)); render(); }
 function dupBill(id){
   const src = structuredClone(db.bills.find(b => b.id === id));
-  editing = {...src, id:null, date:today(), month:'', paid:0};
+  editing = {...src, id:null, date:today(), month:'', paid:0, pdfId:'', pdfUrl:''};
+  delete editing.unsynced;
   editing.no = editing.autoNo = nextNo(editing.date);
   render();
 }
 function delBill(id){
   const b = db.bills.find(x => x.id === id);
-  if(confirm(`Delete bill ${b.no} (${b.customer})?`)){ db.bills = db.bills.filter(x => x.id !== id); save(); render(); }
+  if(confirm(`Delete bill ${b.no} (${b.customer})?${cloudOn() ? ' Its PDF will be moved to the Google Drive trash.' : ''}`)){ db.bills = db.bills.filter(x => x.id !== id); save(); render(); cloudDelete('deleteBill', id); }
 }
 function fld(label, key, type='text', list=''){
   return `<label>${label}<input id="f_${key}" ${list?`list="${list}"`:''} type="${type || 'text'}" ${type==='number'?'step="any" min="0"':''} value="${esc(editing[key])}" oninput="setF('${key}',this.value)"></label>`;
@@ -417,6 +425,9 @@ function saveBill(andPrint){
   if(p){ ['wo','orderNo','refNo','terms','assetCode'].forEach(k => p[k] = b[k]); p.assetCodes = choices(b,'assetCode').join(', '); p.orderNos = choices(b,'orderNo').join(', '); p.woNos = choices(b,'wo').join(', '); }
   save(); editing = null; render();
   if(andPrint) printBill(b.id);
+  if(p) pushBuyers();
+  if(isNew) pushSettings();
+  cloudSaveBill(b);
 }
 function saveProfile(){
   const b = editing;
@@ -426,7 +437,7 @@ function saveProfile(){
   PROFILE_KEYS.forEach(k => p[k] = structuredClone(b[k]));
   p.gstRate = num(p.gstRate);
   p.items = b.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per}));
-  b.buyerId = p.id; save();
+  b.buyerId = p.id; save(); pushBuyers();
   alert('Buyer profile saved for ' + p.customer); render();
 }
 
@@ -497,15 +508,15 @@ function saveBuyer(){
   p.gstRate = num(p.gstRate);
   p.items = p.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per}));
   if(!p.id){ p.id = uid(); db.buyers.push(p); } else db.buyers[db.buyers.findIndex(x => x.id === p.id)] = p;
-  S.buyer = null; save(); render();
+  S.buyer = null; save(); render(); pushBuyers();
 }
 function delBuyer(id){
   const p = db.buyers.find(x => x.id === id);
-  if(confirm(`Delete buyer ${p.customer}? Bills already made for them are kept.`)){ db.buyers = db.buyers.filter(x => x.id !== id); save(); render(); }
+  if(confirm(`Delete buyer ${p.customer}? Bills already made for them are kept.`)){ db.buyers = db.buyers.filter(x => x.id !== id); save(); render(); pushBuyers(); }
 }
 
-function printBill(id){
-  const b = db.bills.find(x => x.id === id), c = billCalc(b), s = db.settings;
+function invoiceHtml(b, copy){
+  const c = billCalc(b), s = db.settings;
   const ln = (lab, v) => v ? `${lab}: ${esc(v)}<br>` : '';
   const kv = (lab, v) => `<td><div class="k">${lab}</div><div class="v">${esc(v)}</div></td>`;
   const seller = `<b>${esc(s.name)}</b><br>${ln('VENDOR CODE', s.vendorCode)}${s.address ? `<span class="pl">${esc(s.address)}</span><br>` : ''}
@@ -516,7 +527,7 @@ function printBill(id){
   const h = c.rate/2, empty = '<td></td>';
   const taxRow = (label, amt) => `<tr class="nb"><td></td><td class="n">${label}</td>${empty.repeat(4)}<td class="n">${fmt(amt)}</td></tr>`;
   const taxes = b.taxType === 'IGST' ? taxRow(`IGST @${c.rate}%`, c.igst) : b.taxType === 'None' ? '' : taxRow(`CGST @${h}%`, c.cgst) + taxRow(`SGST @${h}%`, c.sgst);
-  printDoc(letterhead() + `<div class="dtitle">${s.gstin ? 'TAX INVOICE' : 'INVOICE'} (${esc(S.copy)})</div>
+  return letterhead() + `<div class="dtitle">${s.gstin ? 'TAX INVOICE' : 'INVOICE'} (${esc(copy)})</div>
     <table class="inv"><colgroup><col style="width:40%"><col style="width:30%"><col style="width:30%"></colgroup>
       <tr><td rowspan="4">${seller}</td>${kv('Invoice No.', b.no)}${kv('Dated', longDate(b.date))}</tr>
       <tr>${kv('ASSET CODE', b.assetCode)}${kv('Mode/Terms of Payment', b.terms)}</tr>
@@ -540,8 +551,9 @@ function printBill(id){
       ${b.notes ? `<tr><td colspan="7"><span class="pl">Remarks: ${esc(b.notes)}</span></td></tr>` : ''}
       ${s.pan ? `<tr><td colspan="7">Company's PAN: <b>${esc(s.pan)}</b></td></tr>` : ''}
     </table>
-    <div class="signbox">${s.stamp ? `<img src="${s.stamp}" alt="">` : '<div style="height:70px"></div>'}<div>For ${esc(s.name)}</div><div><b>Authorized Signature</b></div></div>`);
+    <div class="signbox">${s.stamp ? `<img src="${s.stamp}" alt="">` : '<div style="height:70px"></div>'}<div>For ${esc(s.name)}</div><div><b>Authorized Signature</b></div></div>`;
 }
+function printBill(id){ printDoc(invoiceHtml(db.bills.find(x => x.id === id), S.copy)); }
 
 /* ================= SALARY ================= */
 const SK = ['basic','hra','allow','gross','pf','esi','pt','ded','net'];
@@ -578,11 +590,11 @@ function empTable(){
       <td><button class="b s d" onclick="delEmp(${i})" title="Remove">✕</button></td></tr>`).join('') + '</table>';
 }
 function setEmp(i,k,v){
-  const e = db.employees[i]; e[k] = ['name','designation'].includes(k) ? v : num(v); save();
+  const e = db.employees[i]; e[k] = ['name','designation'].includes(k) ? v : num(v); save(); pushEmployees();
   $('#eg'+i).textContent = money(num(e.basic)+num(e.hra)+num(e.allow));
 }
-function addEmp(){ db.employees.push({id:uid(),name:'',designation:'',basic:0,hra:0,allow:0,pfPct:12,esiPct:0,pt:200}); save(); render(); }
-function delEmp(i){ if(confirm('Remove '+(db.employees[i].name || 'this employee')+'? Saved salary sheets are not affected.')){ db.employees.splice(i,1); save(); render(); } }
+function addEmp(){ db.employees.push({id:uid(),name:'',designation:'',basic:0,hra:0,allow:0,pfPct:12,esiPct:0,pt:200}); save(); render(); pushEmployees(); }
+function delEmp(i){ if(confirm('Remove '+(db.employees[i].name || 'this employee')+'? Saved salary sheets are not affected.')){ db.employees.splice(i,1); save(); render(); pushEmployees(); } }
 function genSheet(m){
   m = m || $('#smonth').value; if(!m) return;
   const ex = db.sheets.find(s => s.month === m);
@@ -618,21 +630,23 @@ function saveSheet(){
   if(!s.id) s.id = uid();
   db.sheets = db.sheets.filter(x => x.month !== s.month && x.id !== s.id);
   db.sheets.push(structuredClone(s)); save(); render();
+  cloudSaveSheet(db.sheets.at(-1));
 }
 function savedSheets(){
   if(!db.sheets.length) return '<p class="muted">No saved sheets yet.</p>';
-  return `<div class="tw"><table><tr><th>Month</th><th class="n">Employees</th><th class="n">Gross</th><th class="n">Net paid</th><th></th></tr>` +
+  return `<div class="tw"><table><tr><th>Month</th><th class="n">Employees</th><th class="n">Gross</th><th class="n">Net paid</th><th>Drive</th><th></th></tr>` +
     [...db.sheets].sort((a,b)=>b.month.localeCompare(a.month)).map(s => { const t = sheetTot(s); return `<tr><td>${monthName(s.month)}</td>
       <td class="n">${s.rows.length}</td><td class="n">${money(t.gross)}</td><td class="n">${money(t.net)}</td>
+      <td>${s.pdfUrl ? `<a href="${esc(s.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : ''}</td>
       <td><button class="b s" onclick="genSheet('${s.month}')">Open</button> <button class="b s d" onclick="delSheet('${s.id}')">Delete</button></td></tr>`; }).join('') + '</table></div>';
 }
 function delSheet(id){
   const s = db.sheets.find(x => x.id === id);
-  if(confirm('Delete salary sheet for '+monthName(s.month)+'?')){ db.sheets = db.sheets.filter(x => x.id !== id); if(S.sheet?.id === id) S.sheet = null; save(); render(); }
+  if(confirm('Delete salary sheet for '+monthName(s.month)+'?')){ db.sheets = db.sheets.filter(x => x.id !== id); if(S.sheet?.id === id) S.sheet = null; save(); render(); cloudDelete('deleteSheet', id); }
 }
-function printSheet(){
-  const s = S.sheet, t = sheetTot(s);
-  printDoc(bizHead('SALARY SHEET', `${monthName(s.month)} · Working days: ${s.workDays}`) +
+function sheetHtml(s){
+  const t = sheetTot(s);
+  return (bizHead('SALARY SHEET', `${monthName(s.month)} · Working days: ${s.workDays}`) +
     `<table><tr><th>#</th><th>Employee</th><th>Designation</th><th class="n">Days</th><th class="n">Basic</th><th class="n">HRA</th><th class="n">Allow.</th><th class="n">Bonus</th>
       <th class="n">Gross</th><th class="n">PF</th><th class="n">ESI</th><th class="n">PT</th><th class="n">Advance</th><th class="n">Deductions</th><th class="n">Net pay</th><th>Signature</th></tr>
     ${s.rows.map((r,i)=>{ const c = salCalc(r, s.workDays); return `<tr><td>${i+1}</td><td>${esc(r.name)}</td><td>${esc(r.designation)}</td><td class="n">${num(r.present)}</td>
@@ -641,6 +655,7 @@ function printSheet(){
     <p><b>Total net salary:</b> ${amountWords(t.net)}</p>
     <div class="sign"><div>Prepared by</div><div>Approved by</div></div>`);
 }
+function printSheet(){ printDoc(sheetHtml(S.sheet)); }
 function printSlips(){
   const s = S.sheet;
   printDoc(s.rows.map(r => { const c = salCalc(r, s.workDays); return `<div class="page">${bizHead('PAYSLIP', monthName(s.month))}
@@ -755,8 +770,9 @@ function viewSettings(){
   <div class="card"><h2>Invoice numbering & tax</h2>
     <div class="grid">${f('Invoice prefix','prefix')}${f('Next invoice number','next','number')}${f('Default GST rate %','gst','number')}${f('Currency symbol (screens & reports)','cur')}</div>
     <label class="chk" style="margin-top:10px"><input type="checkbox" ${s.fySuffix?'checked':''} onchange="setS('fySuffix',this.checked);render()"> Add financial year at the end (e.g. ${esc(nextNo(today()))})</label></div>
+  ${cloudCard()}
   <div class="card"><h2>Backup</h2>
-    <p class="muted small">Data is saved in this browser only. Download a backup regularly, and use it to move your data to another device or browser.</p>
+    <p class="muted small">${cloudOn() ? 'Your data is also kept in your Google Sheet. A backup file is an extra copy.' : 'Data is saved in this browser only. Download a backup regularly, and use it to move your data to another device or browser.'}</p>
     <div class="row"><button class="b p" onclick="backup()">Download backup</button>
       <label class="b" style="flex:0 0 auto;display:inline-block;color:var(--ink);cursor:pointer;font-size:14px;padding:8px 14px;border:1px solid var(--line);border-radius:6px">Restore from backup<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0])"></label>
       <button class="b d" onclick="resetBills()">Reset all bills</button>
@@ -765,7 +781,7 @@ function viewSettings(){
 }
 function setS(k,v){
   db.settings[k] = k==='next' ? Math.max(1, parseInt(v)||1) : k==='gst' ? num(v) : v;
-  save(); renderBrand();
+  save(); renderBrand(); pushSettings();
 }
 function setImg(k, file){
   if(!file) return;
@@ -785,7 +801,8 @@ function restore(file){
   rd.onload = () => { try{ const d = JSON.parse(rd.result); if(!d.bills || !d.settings) throw new Error('Not a valid backup file');
       if(!confirm('Replace all current data with this backup?')) return;
       db = {...structuredClone(BLANK), ...d, settings:{...BLANK.settings, ...d.settings}}; db.bills.forEach(migrateBill);
-      save(); S.sheet = null; render(); alert('Backup restored'); }
+      save(); S.sheet = null; render(); alert('Backup restored');
+      if(cloudOn() && confirm('Replace the data in your Google Sheet with this backup too?')) cloud('wipeAll').then(() => uploadAll()).catch(e => toast(e.message, 'err')); }
     catch(e){ alert('Could not restore: '+e.message); } };
   rd.readAsText(file);
 }
@@ -797,11 +814,168 @@ function resetBills(){
   db.bills = [];
   const v = prompt('Start invoice numbering again from:', db.settings.next);
   if(v !== null && parseInt(v) > 0) db.settings.next = parseInt(v);
-  save(); render(); alert('All bills have been deleted.');
+  save(); render(); alert('All bills have been deleted.' + (cloudOn() ? ' They are also removed from the Google Sheet; PDFs stay in Drive.' : ''));
+  if(cloudOn()){ cloud('resetBills').catch(e => toast('Not reset in Google: ' + e.message, 'err')); pushSettings(); }
 }
-function wipe(){ if(confirm('Delete ALL bills, buyers, employees and salary sheets? This cannot be undone.') && confirm('Are you sure?')){ db = structuredClone(BLANK); save(); S.sheet = null; render(); } }
+function wipe(){
+  if(!(confirm(`Delete ALL bills, buyers, employees and salary sheets?${cloudOn() ? ' This also empties your Google Sheet (PDFs stay in Drive).' : ''} This cannot be undone.`) && confirm('Are you sure?'))) return;
+  db = structuredClone(BLANK); save(); S.sheet = null; render();
+  if(cloudOn()) cloud('wipeAll').then(() => uploadAll(true)).catch(e => toast('Not cleared in Google: ' + e.message, 'err'));
+}
+
+/* ================= GOOGLE SHEETS & DRIVE ================= */
+const CLOUD_KEY = 'billpay_cloud';                       // web-app URL + secret key, kept only in this browser
+let cloudCfg = (() => { try{ return JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; }catch(e){ return {}; } })();
+const cloudOn = () => !!(cloudCfg.url && cloudCfg.key);
+async function cloud(action, data={}){
+  const r = await fetch(cloudCfg.url, {method:'POST', body:JSON.stringify({key:cloudCfg.key, action, ...data})});
+  let j; try{ j = await r.json(); }catch(e){ throw new Error('Unexpected reply from Google. Check the web app URL, and that access is set to "Anyone".'); }
+  if(!j.ok) throw new Error(j.error || 'Google returned an error');
+  return j;
+}
+function toast(msg, kind=''){
+  let t = $('#toast'); if(!t){ t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.className = 'show ' + kind;
+  clearTimeout(toast.tm); toast.tm = setTimeout(() => t.className = '', kind === 'err' ? 7000 : 3500);
+}
+function setCloudStatus(text, ok){
+  S.cloudStatus = text; if(ok !== undefined) S.cloudOk = ok;
+  const el = $('#cloudStatus'); if(el) el.textContent = text;
+  renderBrand();
+}
+const cloudSettings = () => { const {logo, stamp, ...s} = db.settings; return s; };   // images stay in the app
+const timers = {};
+function cloudLater(action, data){
+  if(!cloudOn()) return;
+  clearTimeout(timers[action]);
+  timers[action] = setTimeout(async () => { try{ await cloud(action, data()); }catch(e){ toast('Not saved to Google: '+e.message, 'err'); } }, 1200);
+}
+const pushBuyers = () => cloudLater('saveBuyers', () => ({buyers:db.buyers}));
+const pushEmployees = () => cloudLater('saveEmployees', () => ({employees:db.employees}));
+const pushSettings = () => cloudLater('saveSettings', () => ({settings:cloudSettings()}));
+
+let pdfLib = null;
+function loadPdfLib(){
+  return pdfLib ||= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    s.onload = () => res(window.html2pdf);
+    s.onerror = () => { pdfLib = null; rej(new Error('could not load the PDF tool (check the internet connection)')); };
+    document.head.appendChild(s);
+  });
+}
+async function makePdf(html, landscape=false){
+  const lib = await loadPdfLib();
+  const els = [document.documentElement, document.body], bg = els.map(e => e.style.background);
+  els.forEach(e => e.style.background = '#fff');            // keeps the page grey out of the PDF
+  try{
+  const uri = await lib().set({margin:10, image:{type:'jpeg', quality:0.96}, html2canvas:{scale:2, backgroundColor:'#ffffff'},
+      jsPDF:{unit:'mm', format:'a4', orientation:landscape ? 'landscape' : 'portrait'}, pagebreak:{mode:['css','legacy']}})
+    .from(`<div class="doc" style="width:${landscape ? 1000 : 718}px;background:#fff">${html}</div>`).outputPdf('datauristring');
+  return uri.slice(uri.indexOf(',') + 1);
+  }finally{ els.forEach((e,i) => e.style.background = bg[i]); }
+}
+async function cloudSaveBill(b){
+  if(!cloudOn() || !b) return false;
+  try{
+    toast('Saving ' + b.no + ' to Google Sheet and Drive…');
+    const pdf = await makePdf(invoiceHtml(b, 'ORIGINAL FOR RECIPIENT'));
+    const r = await cloud('saveBill', {bill:{...b, unsynced:false}, calc:billCalc(b), pdf});
+    const x = db.bills.find(y => y.id === b.id);
+    if(x){ x.pdfId = r.pdfId; x.pdfUrl = r.pdfUrl; delete x.unsynced; save(); }
+    toast(b.no + ' saved to Google ✓', 'ok');
+    return true;
+  }catch(e){
+    const x = db.bills.find(y => y.id === b.id); if(x){ x.unsynced = true; save(); }
+    toast('Bill saved here, but not in Google: ' + e.message, 'err');
+    return false;
+  }finally{ if(view === 'bills' && !editing) render(); }
+}
+function sheetRows(s){
+  return s.rows.map(r => { const c = salCalc(r, s.workDays);
+    return [r.name, r.designation, num(r.present), c.basic, c.hra, c.allow, c.bonus, c.gross, c.pf, c.esi, c.pt, c.adv, c.ded, c.net]; });
+}
+async function cloudSaveSheet(s){
+  if(!cloudOn() || !s) return false;
+  try{
+    toast('Saving salary sheet for ' + monthName(s.month) + ' to Google…');
+    const pdf = await makePdf(sheetHtml(s), true);
+    const r = await cloud('saveSheet', {sheet:s, totals:sheetTot(s), rows:sheetRows(s), pdf});
+    [db.sheets.find(y => y.id === s.id), S.sheet?.id === s.id ? S.sheet : null].forEach(x => { if(x){ x.pdfId = r.pdfId; x.pdfUrl = r.pdfUrl; } });
+    save(); toast('Salary sheet saved to Google ✓', 'ok');
+    if(view === 'salary') render();
+    return true;
+  }catch(e){ toast('Salary sheet saved here, but not in Google: ' + e.message, 'err'); return false; }
+}
+function cloudDelete(action, id){ if(cloudOn()) cloud(action, {id}).catch(e => toast('Not removed from Google: ' + e.message, 'err')); }
+async function cloudLoad(){
+  if(!cloudOn()) return;
+  try{
+    setCloudStatus('Loading from Google…');
+    const r = await cloud('load');
+    S.cloudLinks = {sheetUrl:r.sheetUrl, folderUrl:r.folderUrl};
+    const empty = !r.bills.length && !r.buyers.length && !r.employees.length && !r.sheets.length && !r.settings;
+    if(empty){
+      const hasData = db.bills.length || db.employees.length || db.sheets.length;
+      if(!hasData || confirm('Your Google Sheet is empty. Upload the data saved in this browser to it now?')) await uploadAll(!hasData);
+    } else {
+      const pending = db.bills.filter(b => b.unsynced && !r.bills.some(x => x.id === b.id));   // saved here while offline
+      r.bills.forEach(migrateBill);
+      db.bills = r.bills.concat(pending);
+      if(r.buyers.length) db.buyers = r.buyers;
+      db.employees = r.employees; db.sheets = r.sheets;
+      if(r.settings) db.settings = {...BLANK.settings, ...r.settings, logo:db.settings.logo, stamp:db.settings.stamp};
+      save();
+      for(const b of pending) await cloudSaveBill(b);
+    }
+    setCloudStatus('Synced with Google Sheet ✓', true);
+  }catch(e){
+    setCloudStatus('Could not reach Google — using data saved in this browser', false);
+    toast('Could not load from Google: ' + e.message, 'err');
+  }
+  if(!editing && !S.buyer) render();
+}
+async function uploadAll(quiet){
+  if(!cloudOn()) return;
+  try{
+    await cloud('saveBuyers', {buyers:db.buyers});
+    await cloud('saveEmployees', {employees:db.employees});
+    await cloud('saveSettings', {settings:cloudSettings()});
+  }catch(e){ return toast('Upload failed: ' + e.message, 'err'); }
+  let ok = 0;
+  for(const b of [...db.bills]) if(await cloudSaveBill(b)) ok++;
+  for(const s of [...db.sheets]) await cloudSaveSheet(s);
+  if(!quiet) toast(`Uploaded: ${ok} of ${db.bills.length} bills, ${db.sheets.length} salary sheets, buyers, employees and settings`, ok === db.bills.length ? 'ok' : 'err');
+}
+function retryBill(id){ cloudSaveBill(db.bills.find(b => b.id === id)); }
+function cloudCard(){
+  const L = S.cloudLinks;
+  return `<div class="card" id="cloudCard"><h2>Google Sheets & Drive</h2>
+    <p class="muted small">When connected, every bill you save is added to your Google Sheet and its PDF is saved in Google Drive (ASR Billing → Invoices → year → month). Salary sheets are saved the same way. All your devices then share the same data. First set up the script — the steps are at the top of Code.gs.</p>
+    <div class="grid"><label>Web app URL (ends with /exec)<input id="c_url" value="${esc(cloudCfg.url || '')}" placeholder="https://script.google.com/macros/s/…/exec"></label>
+      <label>Secret key<input id="c_key" type="password" value="${esc(cloudCfg.key || '')}" placeholder="SECRET_KEY from Code.gs"></label></div>
+    <div class="row" style="margin-top:12px;align-items:center"><button class="b p" onclick="cloudConnect()">${cloudOn() ? 'Save & reconnect' : 'Connect'}</button>
+      ${cloudOn() ? `<button class="b" onclick="cloudLoad()">Load from Google now</button><button class="b" onclick="uploadAll()">Upload everything again</button><button class="b d" onclick="cloudDisconnect()">Disconnect</button>` : ''}
+      <span class="small" id="cloudStatus">${esc(S.cloudStatus || '')}</span></div>
+    ${L?.sheetUrl ? `<p class="small" style="margin:10px 0 0"><a href="${esc(L.sheetUrl)}" target="_blank" rel="noopener">Open Google Sheet</a> · <a href="${esc(L.folderUrl)}" target="_blank" rel="noopener">Open Drive folder</a></p>` : ''}</div>`;
+}
+async function cloudConnect(){
+  const url = $('#c_url').value.trim(), key = $('#c_key').value.trim();
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return alert('Paste the Web app URL from Apps Script. It starts with https://script.google.com/');
+  if(!key) return alert('Enter the secret key (SECRET_KEY at the top of Code.gs)');
+  cloudCfg = {url, key}; try{ localStorage.setItem(CLOUD_KEY, JSON.stringify(cloudCfg)); }catch(e){}
+  setCloudStatus('Connecting…');
+  try{ await cloud('ping'); await cloudLoad(); }
+  catch(e){ setCloudStatus('Could not connect: ' + e.message, false); }
+}
+function cloudDisconnect(){
+  if(!confirm('Stop saving to Google? Everything already in the Sheet and Drive stays there.')) return;
+  cloudCfg = {}; try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
+  S.cloudLinks = null; setCloudStatus('', undefined); S.cloudOk = undefined; render();
+}
 
 render();
+cloudLoad();
 </script>
 </body>
 </html>
