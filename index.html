@@ -97,6 +97,14 @@ summary{cursor:pointer}
 .doc .inv tr.nb td{border-top:0;border-bottom:0}
 .doc .inv td.tl{border-top:1px solid #000}
 .pl,.doc .inv td.pl{white-space:pre-line}
+.refline{display:flex;justify-content:space-between;font-style:italic;font-weight:700;margin:18px 6px 18px}
+.doc .inv.msr td,.doc .inv.msr th{font-size:12px;vertical-align:top}
+.doc .inv.msr .ttl{text-align:center;font-weight:700;font-size:14px;text-decoration:underline}
+.doc .inv.msr .ctr{text-align:center}
+.doc .inv.msr tr.it td{height:110px}
+.doc .inv.msr td.bank{vertical-align:top}
+.doc .inv.msr .sg img{max-width:150px;max-height:80px;display:block;margin:2px auto}
+.doc .inv.msr .bk{border-collapse:collapse;margin-top:4px}.doc .inv.msr .bk td{border:0;padding:1px 8px 1px 0;font-size:12px}
 .signbox{margin-left:auto;width:230px;text-align:center;margin-top:12px}
 .signbox img{max-width:150px;max-height:110px;display:block;margin:0 auto 2px}
 .doc table.pgw{width:100%;border-collapse:collapse}
@@ -130,7 +138,8 @@ const BLANK = {settings:{
   headAddr:'Gangavaram Port Road, Near Sardar Nest, Gajuwaka, Visakhapatnam - 530 044.',
   address:'Second Floor, 31-24-15/4, Flat No-201,\nSri BVK Towers, Bharath Nagar,\nI.T.I Road, Kurmannapalem,\nVisakhapatnam\nAndhra Pradesh-530046',
   vendorCode:'P12301015590000', udyam:'UDYAM-AP-10-0010457', pan:'EJBPS4499P', state:'Andhra Pradesh', stateCode:'37',
-  cur:'₹', prefix:'ASR/VSP/', fySuffix:true, next:15, gst:18, logo:'', stamp:''
+  cur:'₹', prefix:'ASR/VSP/', fySuffix:true, next:15, gst:18, logo:'', stamp:'',
+  bankHolder:'ASR INFRA', bankName:'AXIS bank', bankAcc:'924020064512098', bankBranch:'Kurmannapalem', bankIfsc:'UTIB0004461'
 }, bills:[], employees:[], sheets:[], buyers:[{
   id:'lt-madp7', customer:'LARSEN AND TOUBRO LTD (0780 MADP7)', equipCode:'Pick & Carry Crane-15T-02724GQH', vendorCode:'S0054635',
   jobLoc:'MADP7', address:'GUNTUR', gstin:'37AAACL0140P1ZI', bstate:'Andhra Pradesh', bstateCode:'37', assetCode:'01352BBH',
@@ -142,8 +151,15 @@ const BLANK = {settings:{
     {desc:'HIRING OF ASSETS- NORMAL HOURS IN A MONTH OF 30 CALENDER DAYS\nItem Code is : 190000000003842', ref:'LE25M241-MADP7', rate:326.92, per:'HRS'},
     {desc:'Miscellaneous Accommodation Charges Only Labour Charges\nITEM CODE: 105681300110065', ref:'LE25M241-MADP7', rate:1500, per:'MONTH'},
     {desc:'Miscellaneous Overtime Charges- In a Month Of 31 Calender Days\nITEM CODE: 190000000001970', ref:'LE25M241-MADP7', rate:228.84, per:'MONTH'}]
-}]};
+}, MSR_SEED()]};
 
+function MSR_SEED(){ return {
+  id:'msr-pm', layout:'msr', customer:'MSR PROJECTS AND MINERALS (P) LTD.', address:'H. NO: 2-243/9, BETHAMCHARLA,\nKURNOOL-518599, A.P.,',
+  gstin:'37AAGCM5576L1ZT', bstate:'ANDHRA PRADESH', bstateCode:'37', jobLoc:'', workSite:'ARAKU', project:'Araku Site',
+  wo:'MSR/CON/WO/2026/05', woNos:'MSR/CON/WO/2026/05', noPrefix:'ASR INFRA /VSP/',
+  extraNote:'For any extra working hours beyond 260 hrs you will be paid extra charges for bucket Machine Rs.692.00 per hour.',
+  machine:'Ex-200', taxType:'CGST+SGST', gstRate:18,
+  items:[{desc:'Supply of Ex-200 machine', ref:'', rate:6000, per:'DAY', monthly:180000}] }; }
 let db = load();
 function load(){
   let d; try{ d = JSON.parse(localStorage.getItem(KEY)); }catch(e){}
@@ -153,6 +169,7 @@ function load(){
   d = {...structuredClone(BLANK), ...d, settings:s};
   d.bills.forEach(migrateBill);
   fixBuyers(d.buyers);
+  if(!d.buyers.some(x => x.id === 'msr-pm') && !d.buyers.some(x => /MSR PROJECTS/i.test(x.customer))) d.buyers.push(MSR_SEED());
   return d;
 }
 // W.O no. for L&T: both 000013 and 000019 are offered (older saved data is updated here)
@@ -227,6 +244,13 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.4.0', date:'2026-11-05', changes:[
+    ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
+    ['Bills','MSR: working hours is entered on each bill and printed with the working days'],
+    ['Bills','MSR: work start and end dates can be changed (e.g. to include a few days of the next month); days, texts and amount follow'],
+    ['Bills','MSR: the fixed monthly hire (set once on the buyer) gives the per-day rate automatically from the days in the month'],
+    ['Buyers','Each buyer can now pick its own invoice layout and invoice-number prefix'],
+    ['Settings','New Bank details card']]},
   {v:'1.3.5', date:'2026-11-05', changes:[
     ['Bills','Printing no longer shows the browser date and "ASR Billing" title at the top (and no page address at the bottom)'],
     ['Salary sheets','Same clean printing for salary sheets, payslips and the balance sheet']]},
@@ -299,7 +323,8 @@ const FIX_F = [['customer','Buyer name'],['equipCode','Equipment code'],['vendor
   ['gstin','GSTIN / UIN'],['bstate','State name'],['bstateCode','State code'],['dispDoc','Dispatched doc no.'],
   ['delivDate','Delivery note date'],['dispThrough','Dispatched through'],['dest','Destination'],['lr','Bill of loading / LR-RR no.'],['delivTerms','Terms of delivery']];
 const FIX_TA = [['address','Address / city'],['equip','Equipment details (printed under Destination)']];
-const PROFILE_KEYS = [...FIX_F.map(f=>f[0]), ...FIX_TA.map(f=>f[0]), 'terms','wo','orderNo','refNo','assetCode','assetCodes','orderNos','woNos','taxType','gstRate'];
+const MSR_F = [['workSite','Work site'],['project','Project'],['machine','Machine (e.g. Ex-200)'],['woMonth','Working month line'],['workPeriod','Work period line']];
+const PROFILE_KEYS = ['layout','workSite','project','machine','extraNote','noPrefix',...FIX_F.map(f=>f[0]), ...FIX_TA.map(f=>f[0]), 'terms','wo','orderNo','refNo','assetCode','assetCodes','orderNos','woNos','taxType','gstRate'];
 const PERS = ['HRS','MONTH','DAYS','NOS','TRIP','KM','CUM','MT'];
 const perList = () => `<datalist id="perlist">${PERS.map(p=>`<option value="${p}">`).join('')}</datalist>`;
 const blankItem = () => ({desc:'',ref:'',qty:0,rate:0,per:'',amt:'',manual:false});
@@ -307,7 +332,7 @@ const blankItem = () => ({desc:'',ref:'',qty:0,rate:0,per:'',amt:'',manual:false
 const itemAmt = it => it.manual ? num(it.amt) : r2(num(it.qty)*num(it.rate));
 
 function fy(date){ const [y,m] = date.split('-').map(Number); const s = m >= 4 ? y : y-1; return String(s%100).padStart(2,'0')+'-'+String((s+1)%100).padStart(2,'0'); }
-function nextNo(date){ const s = db.settings; return s.prefix + s.next + (s.fySuffix ? '/' + fy(date) : ''); }
+function nextNo(date, pre){ const s = db.settings; return (pre || s.prefix) + s.next + (s.fySuffix ? '/' + fy(date) : ''); }
 function defMonth(){
   const t = today(), [y,m,d] = t.split('-').map(Number);
   if(d > 10) return t.slice(0,7);
@@ -362,7 +387,7 @@ function billTable(){
 }
 function blankBill(){
   const b = {id:null, buyerId:'', month:'', date:today(), items:[blankItem()], taxType:'CGST+SGST', gstRate:db.settings.gst, discount:0, paid:0, notes:''};
-  [...NOW_F, ...FIX_F, ...FIX_TA].forEach(([k]) => { if(b[k] === undefined) b[k] = ''; });
+  [...NOW_F, ...FIX_F, ...FIX_TA, ...MSR_F, ['fromDate'], ['toDate'], ['extraNote'], ['layout'], ['noPrefix']].forEach(([k]) => { if(b[k] === undefined) b[k] = ''; });
   b.date = today();
   return b;
 }
@@ -371,7 +396,21 @@ function applyMonth(b, m){
   b.month = m; b.date = `${m}-${String(last).padStart(2,'0')}`;
   b.otherRef = `Billing 01 ${mn} to ${last} ${mn} ${y}`;
   b.orderDate = `01 ${mn} to ${last} ${mn} ${y}`;
+  if(b.layout === 'msr'){ b.fromDate = `${m}-01`; b.toDate = b.date; msrRefresh(b); }
 }
+// MSR: monthly hire is fixed. Per-day rate = monthly ÷ days in the starting month; amount = rate × working days
+const dIn = d => new Date(+d.slice(0,4), +d.slice(5,7), 0).getDate();
+function msrAmt(it, b){ const m = num(it.monthly), d = num(it.qty); b = b || editing; if(m > 0 && d > 0 && b.fromDate){ const dim = dIn(b.fromDate); it.rate = r2(m/dim); it.amt = r2(m*d/dim); it.manual = true; } }
+function msrRefresh(b){
+  if(!b.fromDate || !b.toDate) return;
+  const f = new Date(b.fromDate+'T00:00'), t = new Date(b.toDate+'T00:00');
+  const days = Math.max(0, Math.round((t - f)/86400000) + 1), dmy = d => d.split('-').reverse().join('-');
+  const mn = x => MONTHS[+x.slice(5,7)-1], D = x => x.slice(8,10);
+  b.woMonth = `Working Month of ${mn(b.fromDate)} : ${D(b.fromDate)} ${mn(b.fromDate)} to ${D(b.toDate)} ${mn(b.toDate)} ${b.toDate.slice(0,4)}`;
+  b.workPeriod = `Work Period ${b.machine || ''} Machine from ${dmy(b.fromDate)} to ${dmy(b.toDate)} ${b.project || ''} (Working Days ${days})`;
+  (b.items || []).forEach(it => { it.qty = days; it.desc = `Supply of ${b.machine || ''} machine ${mn(b.fromDate)} ${dmy(b.fromDate)} to ${dmy(b.toDate)} working days ${days} days`; msrAmt(it, b); });
+}
+function msrDate(k, v){ if(!v) return; editing[k] = v; msrRefresh(editing); render(); }
 function newBill(){ S.picking = {buyer: db.buyers[0]?.id}; render(); }
 function quickBill(id){ view = 'bills'; S.buyer = null; editing = null; S.picking = {buyer:id}; render(); }
 function startBill(){
@@ -380,18 +419,18 @@ function startBill(){
   if(p){
     PROFILE_KEYS.forEach(k => { if(p[k] !== undefined) b[k] = structuredClone(p[k]); });
     b.buyerId = p.id;
-    b.items = (p.items || []).map(i => ({desc:i.desc, ref:i.ref, qty:0, rate:i.rate, per:i.per}));
+    b.items = (p.items || []).map(i => ({desc:i.desc, ref:i.ref, qty:0, rate:i.rate, per:i.per, monthly:i.monthly || 0, msr:p.layout === 'msr'}));
     if(!b.items.length) b.items = [blankItem()];
   }
   if(m) applyMonth(b, m);
-  b.no = b.autoNo = nextNo(b.date);
+  b.no = b.autoNo = nextNo(b.date, b.noPrefix);
   S.picking = false; editing = b; render();
 }
 function setMonth(m){
   if(!m) return;
   const keepNo = editing.no === editing.autoNo;
   applyMonth(editing, m);
-  if(!editing.id && keepNo) editing.no = editing.autoNo = nextNo(editing.date);
+  if(!editing.id && keepNo) editing.no = editing.autoNo = nextNo(editing.date, editing.noPrefix);
   render();
 }
 function editBill(id){ editing = structuredClone(db.bills.find(b => b.id === id)); render(); }
@@ -412,23 +451,26 @@ function fld(label, key, type='text', list=''){
 }
 function tfld(label, key){ return `<label>${label}<textarea oninput="editing['${key}']=this.value">${esc(editing[key])}</textarea></label>`; }
 function setF(k, v){
+  if((k === 'fromDate' || k === 'toDate') && v.length === 10) return msrDate(k, v);
   editing[k] = v;
-  if(k === 'date' && !editing.id && v && editing.no === editing.autoNo){ editing.no = editing.autoNo = nextNo(v); $('#f_no').value = editing.no; }
+  if(k === 'date' && !editing.id && v && editing.no === editing.autoNo){ editing.no = editing.autoNo = nextNo(v, editing.noPrefix); $('#f_no').value = editing.no; }
   updTot();
 }
 function billEditor(){
   const b = editing;
   return `<div class="card"><h2>${b.id ? 'Edit bill' : 'New bill'}${b.customer ? ' — ' + esc(b.customer) : ''}</h2>
     <div class="grid"><label>Billing month<input type="month" value="${esc(b.month || '')}" onchange="setMonth(this.value)"></label>
-      ${NOW_F.map(([k,l,t]) => PICKS[k] ? pick(l,k) : fld(l,k,t)).join('')}</div>
+      ${(b.layout === 'msr' ? NOW_F.filter(f => ['no','date','wo'].includes(f[0])) : NOW_F).map(([k,l,t]) => PICKS[k] ? pick(l,k) : fld(l,k,t)).join('')}</div>
+    ${b.layout === 'msr' ? `<div class="grid" style="margin-top:10px">${fld('Work start date','fromDate','date')}${fld('Work end date','toDate','date')}${fld('Working month line','woMonth')}${fld('Work site','workSite')}${fld('Project','project')}${fld('Machine','machine')}</div>
+      <div class="grid" style="margin-top:10px">${fld('Work period line','workPeriod')}${tfld('Extra-hours note (printed under it)','extraNote')}</div>` : ''}
     <p class="muted small" style="margin:8px 0 0">Changing the billing month fills in the date, “Other references” and “Order dated”.</p></div>
-  <div class="card tw"><h2>Services</h2><table><tr><th>Sl.</th><th>Description of services (item code on next line)</th><th>Reference code</th><th class="n">Quantity</th><th class="n">Rate</th><th>Per</th><th class="n">Amount</th><th></th></tr>
+  <div class="card tw"><h2>Services</h2><table><tr><th>Sl.</th><th>Description of services (item code on next line)</th><th>${b.layout === 'msr' ? 'Working hours' : 'Reference code'}</th><th class="n">${b.layout === 'msr' ? 'Working days' : 'Quantity'}</th><th class="n">${b.layout === 'msr' ? 'Hire charges per day (auto)' : 'Rate'}</th>${b.layout === 'msr' ? '' : '<th>Per</th>'}<th class="n">Amount</th><th></th></tr>
     ${b.items.map((it,i)=>`<tr><td>${i+1}</td>
       <td><textarea oninput="itm(${i},'desc',this.value)" placeholder="Hiring of assets…">${esc(it.desc)}</textarea></td>
-      <td><input value="${esc(it.ref)}" oninput="itm(${i},'ref',this.value)"></td>
+      <td>${b.layout === 'msr' ? `<input value="${esc(it.hours ?? '')}" oninput="itm(${i},'hours',this.value)" placeholder="e.g. 213.01" style="min-width:110px">` : `<input value="${esc(it.ref)}" oninput="itm(${i},'ref',this.value)">`}</td>
       <td><input type="number" step="any" min="0" value="${it.qty}" oninput="itm(${i},'qty',this.value)"></td>
-      <td><input type="number" step="any" min="0" value="${it.rate}" oninput="itm(${i},'rate',this.value)"></td>
-      <td><input list="perlist" value="${esc(it.per)}" oninput="itm(${i},'per',this.value)" style="min-width:80px"></td>
+      <td><input type="number" step="any" min="0" id="rt${i}" value="${it.rate}" oninput="itm(${i},'rate',this.value)"></td>
+      ${b.layout === 'msr' ? '' : `<td><input list="perlist" value="${esc(it.per)}" oninput="itm(${i},'per',this.value)" style="min-width:80px"></td>`}
       <td><input type="number" step="any" id="amt${i}" value="${itemAmt(it)}" oninput="amtSet(${i},this.value)" style="min-width:120px;text-align:right" title="Type the amount yourself. Clear the box to calculate it from quantity × rate."></td>
       <td><button class="b s d" onclick="delItem(${i})" title="Remove">✕</button></td></tr>`).join('')}
     </table>${perList()}<button class="b" style="margin-top:10px" onclick="addItem()">+ Add item</button>
@@ -458,7 +500,8 @@ function totHtml(){
     <div><span>Status</span><span class="tag ${c.status}">${c.status}</span></div>`;
 }
 function updTot(){ const t = $('#tot'); if(t) t.innerHTML = totHtml(); }
-function itm(i,k,v){ const it = editing.items[i]; it[k] = v; if(!it.manual && (k === 'qty' || k === 'rate')) $('#amt'+i).value = itemAmt(it); updTot(); }
+function itm(i,k,v){ const it = editing.items[i]; it[k] = v;
+  if(editing.layout === 'msr' && num(it.monthly) > 0 && (k === 'qty' || k === 'monthly')){ msrAmt(it, editing); $('#rt'+i).value = it.rate; $('#amt'+i).value = itemAmt(it); } if(!it.manual && (k === 'qty' || k === 'rate')) $('#amt'+i).value = itemAmt(it); updTot(); }
 function amtSet(i, v){
   const it = editing.items[i];
   if(String(v).trim() === ''){ it.manual = false; it.amt = ''; $('#amt'+i).value = itemAmt(it); }   // empty box → calculate again
@@ -476,7 +519,7 @@ function saveBill(andPrint){
   if(!items.length) return alert('Add at least one item');
   if(items.some(i => !num(i.qty)) && !confirm('Some lines have quantity 0. Save anyway?')) return;
   if(db.bills.some(x => x.no === b.no && x.id !== b.id)) return alert('That invoice number is already used');
-  b.items = items.map(i => ({desc:i.desc, ref:i.ref, qty:num(i.qty), rate:num(i.rate), per:i.per, amt:itemAmt(i), manual:!!i.manual}));
+  b.items = items.map(i => ({desc:i.desc, ref:i.ref, qty:num(i.qty), rate:num(i.rate), per:i.per, amt:itemAmt(i), manual:!!i.manual, msr:!!i.msr, monthly:num(i.monthly), hours:String(i.hours ?? '').trim()}));
   b.discount = num(b.discount); b.paid = num(b.paid); b.gstRate = num(b.gstRate);
   const isNew = !b.id, usedAuto = b.no === b.autoNo;
   delete b.autoNo;
@@ -497,7 +540,7 @@ function saveProfile(){
   if(!p){ p = {id:uid()}; db.buyers.push(p); }
   PROFILE_KEYS.forEach(k => p[k] = structuredClone(b[k]));
   p.gstRate = num(p.gstRate);
-  p.items = b.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per}));
+  p.items = b.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per, monthly:num(i.monthly)}));
   b.buyerId = p.id; save(); pushBuyers();
   alert('Buyer profile saved for ' + p.customer); render();
 }
@@ -545,7 +588,9 @@ function buyerEditor(){
   const bi = (k,l,t='text') => `<label>${l}<input type="${t}" ${t==='number'?'step="any" min="0"':''} value="${esc(p[k])}" oninput="S.buyer['${k}']=this.value"></label>`;
   const bt = (k,l) => `<label>${l}<textarea oninput="S.buyer['${k}']=this.value">${esc(p[k])}</textarea></label>`;
   return `<div class="card"><h2>${p.id ? 'Edit buyer' : 'New buyer'}</h2>
-    <div class="grid">${FIX_F.map(([k,l]) => bi(k,l)).join('')}${bi('terms','Mode / terms of payment')}${FIX_TA.map(([k,l]) => bt(k,l)).join('')}</div>
+    <div class="grid"><label>Invoice layout<select onchange="S.buyer.layout=this.value;render()"><option value="" ${!p.layout?'selected':''}>Standard (L&amp;T style)</option><option value="msr" ${p.layout==='msr'?'selected':''}>Hire charges per day (MSR style)</option></select></label>${bi('noPrefix','Invoice no. prefix for this buyer (blank = default)')}</div>
+    ${p.layout === 'msr' ? `<div class="grid" style="margin-top:10px">${MSR_F.filter(f=>f[0]!=='woMonth'&&f[0]!=='workPeriod').map(([k,l]) => bi(k,l)).join('')}${bt('extraNote','Extra-hours note')}</div>` : ''}
+    <div class="grid" style="margin-top:10px">${FIX_F.map(([k,l]) => bi(k,l)).join('')}${bi('terms','Mode / terms of payment')}${FIX_TA.map(([k,l]) => bt(k,l)).join('')}</div>
     <h2 style="margin:18px 0 4px;font-size:14px">Last used numbers</h2><p class="muted small" style="margin:0 0 8px">Pre-filled on the next bill and updated automatically each time you save one.</p>
     <div class="grid">${bi('wo','W.O no.')}${bi('orderNo',"Buyer's order no.")}${bi('refNo','Reference no. & date')}${bi('assetCode','Asset code')}</div>
     <div class="grid" style="margin-top:10px">${bi('assetCodes','Asset code choices (comma separated)')}${bi('orderNos','Buyer\'s order no. choices (comma separated)')}${bi('woNos','W.O no. choices (comma separated)')}</div>
@@ -553,11 +598,11 @@ function buyerEditor(){
     <div class="grid"><label>GST type<select onchange="S.buyer.taxType=this.value">${[['CGST+SGST','CGST + SGST (same state)'],['IGST','IGST (other state)'],['None','No GST']].map(([v,l])=>`<option value="${v}" ${v===p.taxType?'selected':''}>${l}</option>`).join('')}</select></label>
       ${bi('gstRate','GST rate %','number')}</div></div>
   <div class="card tw"><h2>Bill layout (item lines)</h2>
-    <table><tr><th>Sl.</th><th>Description (item code on next line)</th><th>Reference code</th><th class="n">Rate</th><th>Per</th><th></th></tr>
+    <table><tr><th>Sl.</th><th>Description (item code on next line)</th><th>Reference code</th><th class="n">${p.layout === 'msr' ? 'Rate per day (fallback)' : 'Rate'}</th><th>${p.layout === 'msr' ? 'Monthly hire charges' : 'Per'}</th><th></th></tr>
     ${p.items.map((it,i)=>`<tr><td>${i+1}</td><td><textarea oninput="S.buyer.items[${i}].desc=this.value">${esc(it.desc)}</textarea></td>
       <td><input value="${esc(it.ref)}" oninput="S.buyer.items[${i}].ref=this.value"></td>
       <td><input type="number" step="any" min="0" value="${it.rate}" oninput="S.buyer.items[${i}].rate=this.value"></td>
-      <td><input list="perlist" value="${esc(it.per)}" oninput="S.buyer.items[${i}].per=this.value" style="min-width:80px"></td>
+      <td>${p.layout === 'msr' ? `<input type="number" step="any" min="0" value="${it.monthly || ''}" oninput="S.buyer.items[${i}].monthly=this.value" style="min-width:110px">` : `<input list="perlist" value="${esc(it.per)}" oninput="S.buyer.items[${i}].per=this.value" style="min-width:80px">`}</td>
       <td><button class="b s d" onclick="S.buyer.items.splice(${i},1);render()" title="Remove">✕</button></td></tr>`).join('')}</table>${perList()}
     <button class="b" style="margin-top:10px" onclick="S.buyer.items.push({desc:'',ref:S.buyer.items.at(-1)?.ref||'',rate:0,per:''});render()">+ Add line</button>
     <div class="row" style="margin-top:14px"><button class="b p" onclick="saveBuyer()">Save buyer</button><button class="b" onclick="S.buyer=null;render()">Cancel</button></div></div>`;
@@ -567,7 +612,7 @@ function saveBuyer(){
   if(!String(p.customer).trim()) return alert('Enter the buyer name');
   if(db.buyers.some(x => x.customer === p.customer && x.id !== p.id)) return alert('A buyer with this name already exists');
   p.gstRate = num(p.gstRate);
-  p.items = p.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per}));
+  p.items = p.items.filter(i => String(i.desc).trim()).map(i => ({desc:i.desc, ref:i.ref, rate:num(i.rate), per:i.per, monthly:num(i.monthly)}));
   if(!p.id){ p.id = uid(); db.buyers.push(p); } else db.buyers[db.buyers.findIndex(x => x.id === p.id)] = p;
   S.buyer = null; save(); render(); pushBuyers();
 }
@@ -576,7 +621,29 @@ function delBuyer(id){
   if(confirm(`Delete buyer ${p.customer}? Bills already made for them are kept.`)){ db.buyers = db.buyers.filter(x => x.id !== id); save(); render(); pushBuyers(); }
 }
 
+function invoiceMsr(b, copy){
+  const c = billCalc(b), s = db.settings, h = c.rate/2;
+  const row = (l, a, strong) => `<tr><td colspan="4" class="n">${strong ? '<b>'+l+'</b>' : l}</td><td class="n">${strong ? '<b>'+fmt(a)+'</b>' : fmt(a)}</td></tr>`;
+  const taxes = b.taxType === 'IGST' ? row(`IGST@${c.rate}%`, c.igst) : b.taxType === 'None' ? '' : row(`CGST@${h}%`, c.cgst) + row(`SGST@${h}%`, c.sgst);
+  const bl = (l, v) => v ? `<tr><td>${l}</td><td>: ${esc(v)}</td></tr>` : '';
+  return letterhead() + `<div class="refline"><span>Ref. : ...............................</span><span>Date : ...............................</span></div>
+  <table class="inv msr"><colgroup><col style="width:7%"><col style="width:37%"><col style="width:21%"><col style="width:17%"><col style="width:18%"></colgroup>
+    <tr><td colspan="5" class="ttl">${s.gstin ? 'TAX INVOICE' : 'INVOICE'} (${esc(copy)})</td></tr>
+    <tr><td colspan="2"><div>TO</div><b>${esc(b.customer)}</b><br><span class="pl">${esc(b.address)}</span><br>${b.gstin ? 'GST NO: ' + esc(b.gstin) + '<br>' : ''}${b.bstate ? 'State Name : ' + esc(b.bstate) + '<br>' : ''}${b.workSite ? 'WORK SITE: ' + esc(b.workSite) : ''}</td>
+      <td colspan="3">Invoice No. <b>${esc(b.no)}</b><br>Invoice Date: <b>${fmtDate(b.date)}</b><br>GST NO:<b>${esc(s.gstin)}</b><br>${b.wo ? 'Work Order No: <b>' + esc(b.wo) + '</b><br>' : ''}${esc(b.woMonth)}<br>${b.project ? 'Project: ' + esc(b.project) : ''}</td></tr>
+    <tr><td colspan="5">${esc(b.workPeriod)}</td></tr>
+    ${b.extraNote ? `<tr><td colspan="5" style="padding-left:24px">${esc(b.extraNote)}</td></tr>` : ''}
+    <tr><th>SL. NO</th><th>DESCRIPTION</th><th>working days/Hours</th><th>Hire charges per Day</th><th>Total Amount</th></tr>
+    ${b.items.map((it,i) => `<tr class="it"><td class="ctr">${i+1}.</td><td class="pl">${esc(it.desc)}</td><td class="ctr pl">${esc((num(it.qty) ? 'Working days ' + fmt(it.qty, 0) : '') + (String(it.hours ?? '').trim() ? '\nWorking Hours ' + String(it.hours).trim() : (it.ref || '')))}</td><td class="ctr">${fmt(it.rate, Number.isInteger(num(it.rate)) ? 0 : 2)}/-</td><td class="ctr">${fmt(itemAmt(it))}</td></tr>`).join('')}
+    ${row('TOTAL', c.sub)}${c.discount ? row('Less: Discount', -c.discount) + row('Taxable Value', c.taxable) : ''}${taxes}${row('GRAND TOTAL:', c.total, true)}
+    <tr><td colspan="5" class="ctr">(Rupees: ${amountWords(c.total).replace(/^Indian Rupees\s*/i,'')})</td></tr>
+    ${b.notes ? `<tr><td colspan="5"><span class="pl">Remarks: ${esc(b.notes)}</span></td></tr>` : ''}
+    <tr><td colspan="3" class="bank"><u>BANK DETAILS</u><table class="bk">${bl('Name', s.bankHolder)}${bl('Bank Name', s.bankName)}${bl('Account No', s.bankAcc)}${bl('Branch', s.bankBranch)}${bl('IFSC Code', s.bankIfsc)}${bl('PAN', s.pan)}</table></td>
+      <td colspan="2" class="ctr sg"><div>Yours Faithfully,</div><div>For ${esc(s.name)}</div>${s.stamp ? `<img src="${s.stamp}" alt="">` : '<div style="height:60px"></div>'}<div>${esc(s.name)}</div><div>Authorized Signatory</div></td></tr>
+  </table>`;
+}
 function invoiceHtml(b, copy){
+  if(b.layout === 'msr') return invoiceMsr(b, copy);
   const c = billCalc(b), s = db.settings;
   const ln = (lab, v) => v ? `${lab}: ${esc(v)}<br>` : '';
   const kv = (lab, v) => `<td><div class="k">${lab}</div><div class="v">${esc(v)}</div></td>`;
@@ -830,6 +897,8 @@ function viewSettings(){
       ${img('Stamp / signature','stamp','Printed above “Authorized Signature”. A PNG with a transparent background looks best.')}</div></div>
   <div class="card"><h2>Seller details on invoice</h2>
     <div class="grid">${ta('Office address','address')}${f('Vendor code','vendorCode')}${f('UDYAM no.','udyam')}${f('PAN','pan')}${f('State','state')}${f('State code','stateCode')}</div></div>
+  <div class="card"><h2>Bank details</h2><p class="muted small">Printed on invoices that use the "Hire charges per day" layout.</p>
+    <div class="grid">${f('Account holder','bankHolder')}${f('Bank name','bankName')}${f('Account no.','bankAcc')}${f('Branch','bankBranch')}${f('IFSC code','bankIfsc')}</div></div>
   <div class="card"><h2>Invoice numbering & tax</h2>
     <div class="grid">${f('Invoice prefix','prefix')}${f('Next invoice number','next','number')}${f('Default GST rate %','gst','number')}${f('Currency symbol (screens & reports)','cur')}</div>
     <label class="chk" style="margin-top:10px"><input type="checkbox" ${s.fySuffix?'checked':''} onchange="setS('fySuffix',this.checked);render()"> Add financial year at the end (e.g. ${esc(nextNo(today()))})</label></div>
