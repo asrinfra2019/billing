@@ -64,6 +64,29 @@ summary{cursor:pointer}
 #toast.show{opacity:1}#toast.err{background:var(--bad)}#toast.ok{background:var(--ok)}
 .imgprev{max-height:70px;max-width:200px;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff}
 #print{display:none}
+@media screen and (max-width:700px){
+  header{padding:8px 12px}
+  nav{width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  nav button{white-space:nowrap;flex:0 0 auto}
+  main{padding:10px}.card{padding:12px;margin-bottom:12px}
+  .grid{grid-template-columns:1fr}
+  label{flex:1 1 100%}
+  input,select,textarea{font-size:16px}
+  .tot{margin-left:0;min-width:0;flex:1 1 100%}
+  .row.between{gap:8px}
+  .stats{grid-template-columns:1fr 1fr}
+  table.stk,.stk tbody,.stk tr,.stk td{display:block;width:100%}
+  .stk tr:first-child{display:none}
+  .stk tr{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+  .stk td{border:0;white-space:normal;padding:4px 0;text-align:left!important}
+  .stk td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
+  .stk td input,.stk td textarea{min-width:0;width:100%}
+  .stk td textarea{min-height:84px}
+  .stk td:empty{display:none}
+  .stk td:last-child{padding-top:8px}
+  .hm{display:inline}
+}
+.hm{display:none}
 @media print{
   body{background:#fff}
   header,main,#toast{display:none!important}
@@ -97,7 +120,7 @@ summary{cursor:pointer}
 .doc .inv tr.nb td{border-top:0;border-bottom:0}
 .doc .inv td.tl{border-top:1px solid #000}
 .pl,.doc .inv td.pl{white-space:pre-line}
-.refline{display:flex;justify-content:space-between;font-style:italic;font-weight:700;margin:18px 6px 18px}
+.refline{display:flex;justify-content:space-between;font-style:italic;font-weight:700;margin:18px 6px 44px}   /* two blank rows above the title box */
 .doc .inv.msr td,.doc .inv.msr th{font-size:12px;vertical-align:top}
 .doc .inv.msr .ttl{text-align:center;font-weight:700;font-size:14px;text-decoration:underline}
 .doc .inv.msr .ctr{text-align:center}
@@ -246,6 +269,7 @@ function bizHead(title, info=''){
 const VERSIONS = [
   {v:'1.4.0', date:'2026-11-05', changes:[
     ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
+    ['App','Works on phones: menu scrolls sideways, forms are one column, and bill lines and the bills list show as stacked cards'],
     ['Bills','MSR: working hours is entered on each bill and printed with the working days'],
     ['Bills','MSR: work start and end dates can be changed (e.g. to include a few days of the next month); days, texts and amount follow'],
     ['Bills','MSR: the fixed monthly hire (set once on the buyer) gives the per-day rate automatically from the days in the month'],
@@ -378,10 +402,10 @@ function billTable(){
   const list = db.bills.filter(b => !q || (b.no+' '+b.customer).toLowerCase().includes(q))
     .sort((a,b) => b.date.localeCompare(a.date) || b.no.localeCompare(a.no));
   if(!list.length) return `<p class="muted">${db.bills.length ? 'No bills match your search.' : 'No bills yet. Click “+ New bill” to create one.'}</p>`;
-  return `<table><tr><th>Invoice no</th><th>Date</th><th>Buyer</th><th class="n">Total</th><th class="n">Received</th><th class="n">Due</th><th>Status</th><th>Drive</th><th></th></tr>` +
-    list.map(b => { const c = billCalc(b); return `<tr><td>${esc(b.no)}</td><td>${fmtDate(b.date)}</td><td>${esc(b.customer)}</td>
-      <td class="n">${money(c.total)}</td><td class="n">${money(c.paid)}</td><td class="n">${money(c.due)}</td><td><span class="tag ${c.status}">${c.status}</span></td>
-      <td>${b.pdfUrl ? `<a href="${esc(b.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : ''}${b.unsynced && cloudOn() ? ` <button class="b s" onclick="retryBill('${b.id}')" title="Not saved to Google yet">⟳ Retry</button>` : ''}</td>
+  return `<table class="stk"><tr><th>Invoice no</th><th>Date</th><th>Buyer</th><th class="n">Total</th><th class="n">Received</th><th class="n">Due</th><th>Status</th><th>Drive</th><th></th></tr>` +
+    list.map(b => { const c = billCalc(b); return `<tr><td data-l="Invoice no">${esc(b.no)}</td><td data-l="Date">${fmtDate(b.date)}</td><td data-l="Buyer">${esc(b.customer)}</td>
+      <td class="n" data-l="Total">${money(c.total)}</td><td class="n" data-l="Received">${money(c.paid)}</td><td class="n" data-l="Due">${money(c.due)}</td><td data-l="Status"><span class="tag ${c.status}">${c.status}</span></td>
+      <td data-l="Drive">${b.pdfUrl ? `<a href="${esc(b.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : ''}${b.unsynced && cloudOn() ? ` <button class="b s" onclick="retryBill('${b.id}')" title="Not saved to Google yet">⟳ Retry</button>` : ''}</td>
       <td><button class="b s" onclick="editBill('${b.id}')">Edit</button> <button class="b s" onclick="printBill('${b.id}')">Print</button>
         <button class="b s" onclick="dupBill('${b.id}')" title="New bill with the same details">Copy</button> <button class="b s d" onclick="delBill('${b.id}')">Delete</button></td></tr>`; }).join('') + '</table>';
 }
@@ -464,15 +488,15 @@ function billEditor(){
     ${b.layout === 'msr' ? `<div class="grid" style="margin-top:10px">${fld('Work start date','fromDate','date')}${fld('Work end date','toDate','date')}${fld('Working month line','woMonth')}${fld('Work site','workSite')}${fld('Project','project')}${fld('Machine','machine')}</div>
       <div class="grid" style="margin-top:10px">${fld('Work period line','workPeriod')}${tfld('Extra-hours note (printed under it)','extraNote')}</div>` : ''}
     <p class="muted small" style="margin:8px 0 0">Changing the billing month fills in the date, “Other references” and “Order dated”.</p></div>
-  <div class="card tw"><h2>Services</h2><table><tr><th>Sl.</th><th>Description of services (item code on next line)</th><th>${b.layout === 'msr' ? 'Working hours' : 'Reference code'}</th><th class="n">${b.layout === 'msr' ? 'Working days' : 'Quantity'}</th><th class="n">${b.layout === 'msr' ? 'Hire charges per day (auto)' : 'Rate'}</th>${b.layout === 'msr' ? '' : '<th>Per</th>'}<th class="n">Amount</th><th></th></tr>
-    ${b.items.map((it,i)=>`<tr><td>${i+1}</td>
-      <td><textarea oninput="itm(${i},'desc',this.value)" placeholder="Hiring of assets…">${esc(it.desc)}</textarea></td>
-      <td>${b.layout === 'msr' ? `<input value="${esc(it.hours ?? '')}" oninput="itm(${i},'hours',this.value)" placeholder="e.g. 213.01" style="min-width:110px">` : `<input value="${esc(it.ref)}" oninput="itm(${i},'ref',this.value)">`}</td>
-      <td><input type="number" step="any" min="0" value="${it.qty}" oninput="itm(${i},'qty',this.value)"></td>
-      <td><input type="number" step="any" min="0" id="rt${i}" value="${it.rate}" oninput="itm(${i},'rate',this.value)"></td>
-      ${b.layout === 'msr' ? '' : `<td><input list="perlist" value="${esc(it.per)}" oninput="itm(${i},'per',this.value)" style="min-width:80px"></td>`}
-      <td><input type="number" step="any" id="amt${i}" value="${itemAmt(it)}" oninput="amtSet(${i},this.value)" style="min-width:120px;text-align:right" title="Type the amount yourself. Clear the box to calculate it from quantity × rate."></td>
-      <td><button class="b s d" onclick="delItem(${i})" title="Remove">✕</button></td></tr>`).join('')}
+  <div class="card tw"><h2>Services</h2><table class="stk"><tr><th>Sl.</th><th>Description of services (item code on next line)</th><th>${b.layout === 'msr' ? 'Working hours' : 'Reference code'}</th><th class="n">${b.layout === 'msr' ? 'Working days' : 'Quantity'}</th><th class="n">${b.layout === 'msr' ? 'Hire charges per day (auto)' : 'Rate'}</th>${b.layout === 'msr' ? '' : '<th>Per</th>'}<th class="n">Amount</th><th></th></tr>
+    ${b.items.map((it,i)=>`<tr><td data-l="Item">${i+1}</td>
+      <td data-l="Description"><textarea oninput="itm(${i},'desc',this.value)" placeholder="Hiring of assets…">${esc(it.desc)}</textarea></td>
+      <td data-l="${b.layout === 'msr' ? 'Working hours' : 'Reference code'}">${b.layout === 'msr' ? `<input value="${esc(it.hours ?? '')}" oninput="itm(${i},'hours',this.value)" placeholder="e.g. 213.01" style="min-width:110px">` : `<input value="${esc(it.ref)}" oninput="itm(${i},'ref',this.value)">`}</td>
+      <td data-l="${b.layout === 'msr' ? 'Working days' : 'Quantity'}"><input type="number" step="any" min="0" value="${it.qty}" oninput="itm(${i},'qty',this.value)"></td>
+      <td data-l="${b.layout === 'msr' ? 'Hire charges per day' : 'Rate'}"><input type="number" step="any" min="0" id="rt${i}" value="${it.rate}" oninput="itm(${i},'rate',this.value)"></td>
+      ${b.layout === 'msr' ? '' : `<td data-l="Per"><input list="perlist" value="${esc(it.per)}" oninput="itm(${i},'per',this.value)" style="min-width:80px"></td>`}
+      <td data-l="Amount"><input type="number" step="any" id="amt${i}" value="${itemAmt(it)}" oninput="amtSet(${i},this.value)" style="min-width:120px;text-align:right" title="Type the amount yourself. Clear the box to calculate it from quantity × rate."></td>
+      <td><button class="b s d" onclick="delItem(${i})" title="Remove">✕<span class="hm"> Remove</span></button></td></tr>`).join('')}
     </table>${perList()}<button class="b" style="margin-top:10px" onclick="addItem()">+ Add item</button>
     <p class="muted small" style="margin:8px 0 0">Type the <b>Amount</b> for each line yourself. It fills in as quantity × rate until you type your own; clear the box to go back to that.</p></div>
   <div class="card"><div class="row" style="align-items:flex-start">
