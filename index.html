@@ -85,6 +85,7 @@ summary{cursor:pointer}
 .lh-ct b{color:#1d4f9c;font-size:14px}
 .lh-addr{font-size:14px;font-weight:600;color:#333;padding:5px 4px;border-bottom:1px solid #555}
 .dtitle{text-align:center;font-weight:700;font-size:15px;margin:12px 0 8px}
+.dtitle.invt{margin-top:44px}   /* two blank rows above the invoice title */
 .doc .inv{width:100%;border-collapse:collapse;table-layout:fixed}
 .doc .inv td,.doc .inv th{border:1px solid #000;padding:3px 6px;vertical-align:top;font-size:11.5px;text-align:left}
 .doc .inv th{font-weight:700;text-align:center}
@@ -218,6 +219,9 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.3.4', date:'2026-11-05', changes:[
+    ['Bills','CGST / SGST / IGST labels moved into the column beside the GST amount'],
+    ['Bills','Two blank rows of space above the TAX INVOICE title']]},
   {v:'1.3.3', date:'2026-11-05', changes:[
     ['Bills','W.O no. dropdown offers both 000013 and 000019']]},
   {v:'1.3.2', date:'2026-11-05', changes:[
@@ -572,8 +576,10 @@ function invoiceHtml(b, copy){
     ${ln('GSTIN/UIN', b.gstin)}${b.bstate ? `State Name: ${esc(b.bstate)}${b.bstateCode ? ', Code : ' + esc(b.bstateCode) : ''}` : ''}`;
   const h = c.rate/2, empty = '<td></td>';
   const taxRow = (label, amt) => `<tr class="nb"><td></td><td class="n">${label}</td>${empty.repeat(4)}<td class="n">${fmt(amt)}</td></tr>`;
-  const taxes = b.taxType === 'IGST' ? taxRow(`IGST @${c.rate}%`, c.igst) : b.taxType === 'None' ? '' : taxRow(`CGST @${h}%`, c.cgst) + taxRow(`SGST @${h}%`, c.sgst);
-  return letterhead() + `<div class="dtitle">${s.gstin ? 'TAX INVOICE' : 'INVOICE'} (${esc(copy)})</div>
+  // GST label sits in the 'Per' column, right beside the amount
+  const gstRow = (label, amt) => `<tr class="nb">${empty.repeat(5)}<td class="n" style="white-space:nowrap">${label}</td><td class="n">${fmt(amt)}</td></tr>`;
+  const taxes = b.taxType === 'IGST' ? gstRow(`IGST @${c.rate}%`, c.igst) : b.taxType === 'None' ? '' : gstRow(`CGST @${h}%`, c.cgst) + gstRow(`SGST @${h}%`, c.sgst);
+  return letterhead() + `<div class="dtitle invt">${s.gstin ? 'TAX INVOICE' : 'INVOICE'} (${esc(copy)})</div>
     <table class="inv"><colgroup><col style="width:40%"><col style="width:30%"><col style="width:30%"></colgroup>
       <tr><td rowspan="4">${seller}</td>${kv('Invoice No.', b.no)}${kv('Dated', longDate(b.date))}</tr>
       <tr>${kv('ASSET CODE', b.assetCode)}${kv('Mode/Terms of Payment', b.terms)}</tr>
@@ -584,7 +590,7 @@ function invoiceHtml(b, copy){
       <tr>${kv('Bill of Loading/LR-RR No.', b.lr)}<td><div class="v pl">${esc(b.equip)}</div></td></tr>
       <tr><td colspan="2" style="height:48px"><div class="k">Terms of Delivery</div><div class="v">${esc(b.delivTerms)}</div></td></tr>
     </table>
-    <table class="inv items"><colgroup><col style="width:6%"><col style="width:34%"><col style="width:14%"><col style="width:11%"><col style="width:10%"><col style="width:9%"><col style="width:16%"></colgroup>
+    <table class="inv items"><colgroup><col style="width:6%"><col style="width:31%"><col style="width:14%"><col style="width:11%"><col style="width:10%"><col style="width:12%"><col style="width:16%"></colgroup>
       <tr><th>Sl. NO</th><th>Description Of Services</th><th>Reference Code</th><th>Quantity</th><th>Rate</th><th>Per</th><th>Amount</th></tr>
       ${b.items.map((it,i) => `<tr><td>${i+1}.</td><td class="pl">${esc(it.desc)}</td><td>${esc(it.ref)}</td><td class="n">${fmt(it.qty,3)}</td>
         <td class="n">${fmt(it.rate)}</td><td>${esc(it.per)}</td><td class="n">${fmt(itemAmt(it))}</td></tr>`).join('')}
