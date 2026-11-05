@@ -219,6 +219,8 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.3.2', date:'2026-11-05', changes:[
+    ['Settings','Google script link is built into the app; only the secret key is entered once on each device']]},
   {v:'1.3.1', date:'2026-11-05', changes:[
     ['Bills','W.O no. choice is now LE/LE25M241/WOD/26/000019 only (000013 removed)'],
     ['Bills','Amount of each line can be typed by you; it still fills in as quantity × rate until you type your own']]},
@@ -868,7 +870,8 @@ function wipe(){
 
 /* ================= GOOGLE SHEETS & DRIVE ================= */
 const CLOUD_KEY = 'billpay_cloud';                       // web-app URL + secret key, kept only in this browser
-let cloudCfg = (() => { try{ return JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; }catch(e){ return {}; } })();
+const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbwH7m2aK79GuoOswYB20xq7P93yaE8VFyxCttgaiRbythBJP_voEt7WllJal6SRQZnpxQ/exec';   // your Google script link (the secret key is NOT stored in this file)
+let cloudCfg = (() => { let c = {}; try{ c = JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; }catch(e){} return {...c, url:c.url || CLOUD_URL}; })();
 const cloudOn = () => !!(cloudCfg.url && cloudCfg.key);
 async function cloud(action, data={}){
   let r;
@@ -1022,7 +1025,7 @@ async function cloudConnect(){
 }
 function cloudDisconnect(){
   if(!confirm('Stop saving to Google? Everything already in the Sheet and Drive stays there.')) return;
-  cloudCfg = {}; try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
+  cloudCfg = {url:CLOUD_URL}; try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
   S.cloudLinks = null; setCloudStatus('', undefined); S.cloudOk = undefined; render();
 }
 
