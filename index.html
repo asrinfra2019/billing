@@ -129,7 +129,7 @@ const BLANK = {settings:{
 }, bills:[], employees:[], sheets:[], buyers:[{
   id:'lt-madp7', customer:'LARSEN AND TOUBRO LTD (0780 MADP7)', equipCode:'Pick & Carry Crane-15T-02724GQH', vendorCode:'S0054635',
   jobLoc:'MADP7', address:'GUNTUR', gstin:'37AAACL0140P1ZI', bstate:'Andhra Pradesh', bstateCode:'37', assetCode:'01352BBH',
-  terms:'31 Days', assetCodes:'01352BBH, 01352AUH', orderNos:'LE/LE25M241/WOD/26/000013, LE/LE25M241/WOD/26/000019', woNos:'LE/LE25M241/WOD/26/000019', dispDoc:'', delivDate:'', dispThrough:'', dest:'AMRAVATI MADP7-SECTION 02', lr:'',
+  terms:'31 Days', assetCodes:'01352BBH, 01352AUH', orderNos:'LE/LE25M241/WOD/26/000013, LE/LE25M241/WOD/26/000019', woNos:'LE/LE25M241/WOD/26/000013, LE/LE25M241/WOD/26/000019', dispDoc:'', delivDate:'', dispThrough:'', dest:'AMRAVATI MADP7-SECTION 02', lr:'',
   equip:'Excavator 147 HP-20 T\nClass -1.5 cum', delivTerms:'',
   wo:'LE/LE25M241/WOD/26/000019', orderNo:'LE/LE25M241/WOD/26/000019', refNo:'LE/LE25M241/BIL/26001374',
   taxType:'CGST+SGST', gstRate:18,
@@ -150,17 +150,16 @@ function load(){
   fixBuyers(d.buyers);
   return d;
 }
-// W.O no. for L&T: 000013 removed, 000019 is the only choice (older saved data is updated here)
+// W.O no. for L&T: both 000013 and 000019 are offered (older saved data is updated here)
 function fixBuyers(list){
-  const OLD = 'LE/LE25M241/WOD/26/000013', NEW = 'LE/LE25M241/WOD/26/000019';
+  const A = 'LE/LE25M241/WOD/26/000013', B = 'LE/LE25M241/WOD/26/000019';
   let changed = false;
   (list || []).forEach(p => {
     if(p.id !== 'lt-madp7') return;
-    const w = String(p.woNos || '').split(',').map(x => x.trim()).filter(x => x && x !== OLD);
-    if(!w.includes(NEW)) w.push(NEW);
-    const nw = w.join(', ');
+    const others = String(p.woNos || '').split(',').map(x => x.trim()).filter(x => x && x !== A && x !== B);
+    const nw = [A, B, ...others].join(', ');
     if(nw !== p.woNos){ p.woNos = nw; changed = true; }
-    if(p.wo === OLD || !p.wo){ p.wo = NEW; changed = true; }
+    if(!p.wo){ p.wo = B; changed = true; }
   });
   return changed;
 }
@@ -219,6 +218,8 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.3.3', date:'2026-11-05', changes:[
+    ['Bills','W.O no. dropdown offers both 000013 and 000019']]},
   {v:'1.3.2', date:'2026-11-05', changes:[
     ['Settings','Google script link is built into the app; only the secret key is entered once on each device']]},
   {v:'1.3.1', date:'2026-11-05', changes:[
