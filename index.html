@@ -169,7 +169,6 @@ function load(){
   d = {...structuredClone(BLANK), ...d, settings:s};
   d.bills.forEach(migrateBill);
   fixBuyers(d.buyers);
-  if(!d.buyers.some(x => x.id === 'msr-pm') && !d.buyers.some(x => /MSR PROJECTS/i.test(x.customer))) d.buyers.push(MSR_SEED());
   return d;
 }
 // W.O no. for L&T: both 000013 and 000019 are offered (older saved data is updated here)
@@ -183,6 +182,7 @@ function fixBuyers(list){
     if(nw !== p.woNos){ p.woNos = nw; changed = true; }
     if(!p.wo){ p.wo = B; changed = true; }
   });
+  if(list && !list.some(x => x.id === 'msr-pm' || /MSR PROJECTS/i.test(x.customer))){ list.push(MSR_SEED()); changed = true; }   // MSR buyer added if missing
   return changed;
 }
 function migrateBill(b){
