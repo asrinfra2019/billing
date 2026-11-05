@@ -68,7 +68,8 @@ summary{cursor:pointer}
   body{background:#fff}
   header,main,#toast{display:none!important}
   #print{display:block}
-  @page{size:A4;margin:10mm}
+  @page{size:A4;margin:0}              /* margin 0 = the browser has no room for its date / title / page-number header and footer */
+  #print .doc{padding:0 10mm}
 }
 /* ---------- printed documents ---------- */
 .doc{font:11.5px/1.35 Arial,Helvetica,sans-serif;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -98,6 +99,9 @@ summary{cursor:pointer}
 .pl,.doc .inv td.pl{white-space:pre-line}
 .signbox{margin-left:auto;width:230px;text-align:center;margin-top:12px}
 .signbox img{max-width:150px;max-height:110px;display:block;margin:0 auto 2px}
+.doc table.pgw{width:100%;border-collapse:collapse}
+.doc table.pgw>thead>tr>td,.doc table.pgw>tfoot>tr>td,.doc table.pgw>tbody>tr>td{border:0;padding:0;background:none;white-space:normal}
+.pgw .sp{height:10mm}
 .page{page-break-after:always}
 .page:last-child{page-break-after:auto}
 </style>
@@ -202,7 +206,11 @@ function amountWords(n){
   const v = r2(n), rs = Math.floor(v), ps = Math.round((v-rs)*100);
   return 'Indian Rupees ' + words(rs) + (ps ? ' And ' + words(ps) + ' Paisa' : '') + ' Only';
 }
-function printDoc(html){ $('#print').innerHTML = '<div class="doc">'+html+'</div>'; setTimeout(()=>window.print(), 300); }
+// the table's header/footer rows repeat on every printed page, so each page keeps a 10 mm top and bottom margin
+function printDoc(html){
+  $('#print').innerHTML = '<div class="doc"><table class="pgw"><thead><tr><td><div class="sp"></div></td></tr></thead><tfoot><tr><td><div class="sp"></div></td></tr></tfoot><tbody><tr><td>' + html + '</td></tr></tbody></table></div>';
+  setTimeout(()=>window.print(), 300);
+}
 function letterhead(){
   const s = db.settings;
   return `<div class="lh-top"><div class="lh-logo"><img src="${logoSrc()}" alt="${esc(s.name)}"></div>
@@ -219,6 +227,9 @@ function bizHead(title, info=''){
    · change to saved data or backups: MAJOR (1.1.0 → 2.0.0).
    Add a new entry at the TOP of this list for every release. */
 const VERSIONS = [
+  {v:'1.3.5', date:'2026-11-05', changes:[
+    ['Bills','Printing no longer shows the browser date and "ASR Billing" title at the top (and no page address at the bottom)'],
+    ['Salary sheets','Same clean printing for salary sheets, payslips and the balance sheet']]},
   {v:'1.3.4', date:'2026-11-05', changes:[
     ['Bills','CGST / SGST / IGST labels moved into the column beside the GST amount'],
     ['Bills','Two blank rows of space above the TAX INVOICE title']]},
