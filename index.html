@@ -269,6 +269,7 @@ function bizHead(title, info=''){
 const VERSIONS = [
   {v:'1.4.0', date:'2026-11-05', changes:[
     ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
+    ['Bills','MSR: invoice date follows the work end date'],
     ['App','Works on phones: menu scrolls sideways, forms are one column, and bill lines and the bills list show as stacked cards'],
     ['Bills','MSR: working hours is entered on each bill and printed with the working days'],
     ['Bills','MSR: work start and end dates can be changed (e.g. to include a few days of the next month); days, texts and amount follow'],
@@ -427,6 +428,9 @@ const dIn = d => new Date(+d.slice(0,4), +d.slice(5,7), 0).getDate();
 function msrAmt(it, b){ const m = num(it.monthly), d = num(it.qty); b = b || editing; if(m > 0 && d > 0 && b.fromDate){ const dim = dIn(b.fromDate); it.rate = r2(m/dim); it.amt = r2(m*d/dim); it.manual = true; } }
 function msrRefresh(b){
   if(!b.fromDate || !b.toDate) return;
+  const keepNo = !b.id && b.no === b.autoNo;
+  b.date = b.toDate;                 // invoice date = work end date
+  if(keepNo) b.no = b.autoNo = nextNo(b.date, b.noPrefix);
   const f = new Date(b.fromDate+'T00:00'), t = new Date(b.toDate+'T00:00');
   const days = Math.max(0, Math.round((t - f)/86400000) + 1), dmy = d => d.split('-').reverse().join('-');
   const mn = x => MONTHS[+x.slice(5,7)-1], D = x => x.slice(8,10);
