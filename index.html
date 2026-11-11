@@ -273,6 +273,7 @@ function bizHead(title, info=''){
 const VERSIONS = [
   {v:'1.4.0', date:'2026-11-05', changes:[
     ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
+    ['Bills','New "Find bills" section: filter by vendor and by month (and search); existing bills are in a collapsible list'],
     ['App','New bill chooser opens as a pop-up at the top; ↻ Refresh button in the menu reloads all data from Google'],
     ['Bills','MSR: invoice date follows the work end date'],
     ['App','Works on phones: menu scrolls sideways, forms are one column, and bill lines and the bills list show as stacked cards'],
@@ -335,7 +336,7 @@ function renderBrand(){
 /* ---------- app state & routing ---------- */
 let view = 'bills';
 let editing = null;          // bill being edited
-const S = {bq:'', copy:'ORIGINAL FOR RECIPIENT', sheet:null, buyer:null, picking:false, bf:'', bt:'', bc:'', bs:''};
+const S = {bq:'', bvend:'', bmonth:'', bopen:true, copy:'ORIGINAL FOR RECIPIENT', sheet:null, buyer:null, picking:false, bf:'', bt:'', bc:'', bs:''};
 function go(v){ view = v; editing = null; S.buyer = null; S.picking = false; render(); }
 function render(){
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
@@ -378,21 +379,39 @@ function billCalc(b){
   const status = total > 0 && paid >= total ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid';
   return {sub, discount, taxable, rate, cgst, sgst, igst, tax, total, paid, due, status};
 }
-function viewBills(){
-  if(editing) return billEditor();
-  const c = db.bills.map(billCalc);
-  const sum = k => c.reduce((a,x)=>a+x[k],0);
-  return (S.picking ? chooser() : '') + `<div class="stats">
-      <div class="stat"><span>Total bills</span><b>${db.bills.length}</b></div>
+function filteredBills(){
+  const q = S.bq.toLowerCase();
+  return db.bills.filter(b => (!q || (b.no+' '+b.customer).toLowerCase().includes(q)) && (!S.bvend || b.customer === S.bvend) && (!S.bmonth || String(b.date).startsWith(S.bmonth)))
+    .sort((a,b) => b.date.localeCompare(a.date) || b.no.localeCompare(a.no));
+}
+function statsHtml(){
+  const list = filteredBills(), c = list.map(billCalc), sum = k => c.reduce((a,x)=>a+x[k],0);
+  return `<div class="stat"><span>Total bills</span><b>${list.length}</b></div>
       <div class="stat"><span>Total billed</span><b>${money(sum('total'))}</b></div>
       <div class="stat"><span>Received</span><b>${money(sum('paid'))}</b></div>
-      <div class="stat"><span>Outstanding</span><b>${money(sum('due'))}</b></div></div>
+      <div class="stat"><span>Outstanding</span><b>${money(sum('due'))}</b></div>`;
+}
+function bfilt(){
+  const el = $('#blist'); if(el) el.innerHTML = billTable();
+  const st = $('#bstats'); if(st) st.innerHTML = statsHtml();
+  const n = $('#bcount'); if(n) n.textContent = `(${filteredBills().length} of ${db.bills.length})`;
+}
+function vendorList(){ return [...new Set([...db.buyers.map(p => p.customer), ...db.bills.map(b => b.customer)].filter(Boolean))]; }
+function viewBills(){
+  if(editing) return billEditor();
+  const filtering = S.bq || S.bvend || S.bmonth;
+  return (S.picking ? chooser() : '') + `<div class="stats" id="bstats">${statsHtml()}</div>
     <div class="card"><div class="row between"><h2 style="margin:0">Bills</h2>
-      <div class="row" style="flex:0 1 640px">
-        <input style="flex:1 1 200px" placeholder="Search bill no or customer" value="${esc(S.bq)}" oninput="S.bq=this.value;$('#blist').innerHTML=billTable()">
+      <div class="row" style="flex:0 1 480px;justify-content:flex-end">
         <select style="flex:0 1 230px" title="Copy printed in the title" onchange="S.copy=this.value">${['ORIGINAL FOR RECIPIENT','DUPLICATE FOR TRANSPORTER','TRIPLICATE FOR SUPPLIER'].map(x=>`<option ${x===S.copy?'selected':''}>${x}</option>`).join('')}</select>
         <button class="b p" style="white-space:nowrap" onclick="newBill()">+ New bill</button></div></div></div>
-    <div class="card tw" id="blist">${billTable()}</div>`;
+    <div class="card"><h2>Find bills</h2>
+      <div class="row"><label style="flex:2 1 260px">Vendor / buyer<select onchange="S.bvend=this.value;bfilt()"><option value="">All vendors</option>${vendorList().map(v => `<option value="${esc(v)}" ${v===S.bvend?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+        <label style="flex:1 1 180px">Month<input type="month" value="${esc(S.bmonth)}" oninput="S.bmonth=this.value;bfilt()"></label>
+        <label style="flex:1 1 200px">Invoice no. / name<input placeholder="Search…" value="${esc(S.bq)}" oninput="S.bq=this.value;bfilt()"></label>
+        <button class="b" onclick="S.bq=S.bvend=S.bmonth='';render()">Clear</button></div></div>
+    <details class="card" ${S.bopen ? 'open' : ''} ontoggle="S.bopen=this.open"><summary><b>Existing bills</b> <span class="muted small" id="bcount">(${filteredBills().length} of ${db.bills.length})</span></summary>
+      <div class="tw" id="blist" style="margin-top:12px">${billTable()}</div></details>`;
 }
 function chooser(){
   const sel = S.picking?.buyer;
@@ -404,10 +423,8 @@ function chooser(){
     <p class="muted small" style="margin:8px 0 0">The buyer's fixed details and item lines are filled in. You only enter this month's numbers, quantities and rates.</p></div></div>`;
 }
 function billTable(){
-  const q = S.bq.toLowerCase();
-  const list = db.bills.filter(b => !q || (b.no+' '+b.customer).toLowerCase().includes(q))
-    .sort((a,b) => b.date.localeCompare(a.date) || b.no.localeCompare(a.no));
-  if(!list.length) return `<p class="muted">${db.bills.length ? 'No bills match your search.' : 'No bills yet. Click “+ New bill” to create one.'}</p>`;
+  const list = filteredBills();
+  if(!list.length) return `<p class="muted">${db.bills.length ? 'No bills match your filters.' : 'No bills yet. Click “+ New bill” to create one.'}</p>`;
   return `<table class="stk"><tr><th>Invoice no</th><th>Date</th><th>Buyer</th><th class="n">Total</th><th class="n">Received</th><th class="n">Due</th><th>Status</th><th>Drive</th><th></th></tr>` +
     list.map(b => { const c = billCalc(b); return `<tr><td data-l="Invoice no">${esc(b.no)}</td><td data-l="Date">${fmtDate(b.date)}</td><td data-l="Buyer">${esc(b.customer)}</td>
       <td class="n" data-l="Total">${money(c.total)}</td><td class="n" data-l="Received">${money(c.paid)}</td><td class="n" data-l="Due">${money(c.due)}</td><td data-l="Status"><span class="tag ${c.status}">${c.status}</span></td>
