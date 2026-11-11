@@ -273,7 +273,7 @@ function bizHead(title, info=''){
 const VERSIONS = [
   {v:'1.4.0', date:'2026-11-05', changes:[
     ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
-    ['Bills','New "Find bills" section: filter by vendor and by month (and search); existing bills are in a collapsible list'],
+    ['Bills','New "Find bills" section: filter by vendor and by month (and search) with Search and Clear buttons; existing bills are in a collapsible list'],
     ['App','New bill chooser opens as a pop-up at the top; ↻ Refresh button in the menu reloads all data from Google'],
     ['Bills','MSR: invoice date follows the work end date'],
     ['App','Works on phones: menu scrolls sideways, forms are one column, and bill lines and the bills list show as stacked cards'],
@@ -391,6 +391,7 @@ function statsHtml(){
       <div class="stat"><span>Received</span><b>${money(sum('paid'))}</b></div>
       <div class="stat"><span>Outstanding</span><b>${money(sum('due'))}</b></div>`;
 }
+function doSearch(){ S.bvend = $('#fv').value; S.bmonth = $('#fm').value; S.bq = $('#fq').value; bfilt(); }
 function bfilt(){
   const el = $('#blist'); if(el) el.innerHTML = billTable();
   const st = $('#bstats'); if(st) st.innerHTML = statsHtml();
@@ -406,10 +407,10 @@ function viewBills(){
         <select style="flex:0 1 230px" title="Copy printed in the title" onchange="S.copy=this.value">${['ORIGINAL FOR RECIPIENT','DUPLICATE FOR TRANSPORTER','TRIPLICATE FOR SUPPLIER'].map(x=>`<option ${x===S.copy?'selected':''}>${x}</option>`).join('')}</select>
         <button class="b p" style="white-space:nowrap" onclick="newBill()">+ New bill</button></div></div></div>
     <div class="card"><h2>Find bills</h2>
-      <div class="row"><label style="flex:2 1 260px">Vendor / buyer<select onchange="S.bvend=this.value;bfilt()"><option value="">All vendors</option>${vendorList().map(v => `<option value="${esc(v)}" ${v===S.bvend?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
-        <label style="flex:1 1 180px">Month<input type="month" value="${esc(S.bmonth)}" oninput="S.bmonth=this.value;bfilt()"></label>
-        <label style="flex:1 1 200px">Invoice no. / name<input placeholder="Search…" value="${esc(S.bq)}" oninput="S.bq=this.value;bfilt()"></label>
-        <button class="b" onclick="S.bq=S.bvend=S.bmonth='';render()">Clear</button></div></div>
+      <div class="row"><label style="flex:2 1 260px">Vendor / buyer<select id="fv"><option value="">All vendors</option>${vendorList().map(v => `<option value="${esc(v)}" ${v===S.bvend?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+        <label style="flex:1 1 180px">Month<input type="month" id="fm" value="${esc(S.bmonth)}" onkeydown="if(event.key==='Enter')doSearch()"></label>
+        <label style="flex:1 1 200px">Invoice no. / name<input id="fq" placeholder="Search…" value="${esc(S.bq)}" onkeydown="if(event.key==='Enter')doSearch()"></label>
+        <button class="b p" onclick="doSearch()">Search</button><button class="b" onclick="S.bq=S.bvend=S.bmonth='';render()">Clear</button></div></div>
     <details class="card" ${S.bopen ? 'open' : ''} ontoggle="S.bopen=this.open"><summary><b>Existing bills</b> <span class="muted small" id="bcount">(${filteredBills().length} of ${db.bills.length})</span></summary>
       <div class="tw" id="blist" style="margin-top:12px">${billTable()}</div></details>`;
 }
