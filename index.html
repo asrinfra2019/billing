@@ -87,6 +87,9 @@ summary{cursor:pointer}
   .hm{display:inline}
 }
 .hm{display:none}
+.ovl{position:fixed;inset:0;background:rgba(20,33,61,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:70px 12px;overflow:auto}
+.ovl .card{width:100%;max-width:760px;box-shadow:0 10px 40px rgba(0,0,0,.3);margin:0}
+nav button.rf{border:1px solid #475a80}
 @media print{
   body{background:#fff}
   header,main,#toast{display:none!important}
@@ -146,6 +149,7 @@ summary{cursor:pointer}
     <button data-v="balance" onclick="go('balance')">Balance sheet</button>
     <button data-v="buyers" onclick="go('buyers')">Buyers</button>
     <button data-v="settings" onclick="go('settings')">Settings</button>
+    <button class="rf" id="rfbtn" onclick="refreshAll()" title="Reload all data">↻ Refresh</button>
   </nav>
 </header>
 <main></main>
@@ -269,6 +273,7 @@ function bizHead(title, info=''){
 const VERSIONS = [
   {v:'1.4.0', date:'2026-11-05', changes:[
     ['Bills','New invoice layout "Hire charges per day" for MSR PROJECTS AND MINERALS (P) LTD. — work site, project, working month, work period, extra-hours note, bank details and signature'],
+    ['App','New bill chooser opens as a pop-up at the top; ↻ Refresh button in the menu reloads all data from Google'],
     ['Bills','MSR: invoice date follows the work end date'],
     ['App','Works on phones: menu scrolls sideways, forms are one column, and bill lines and the bills list show as stacked cards'],
     ['Bills','MSR: working hours is entered on each bill and printed with the working days'],
@@ -391,12 +396,12 @@ function viewBills(){
 }
 function chooser(){
   const sel = S.picking?.buyer;
-  return `<div class="card"><h2>New bill</h2>
+  return `<div class="ovl" onclick="if(event.target===this){S.picking=false;render()}"><div class="card"><h2>New bill</h2>
     <div class="row"><label style="flex:2 1 280px">Buyer<select id="nb_buyer">${db.buyers.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.customer)}</option>`).join('')}
         <option value="">— New buyer (enter details yourself) —</option></select></label>
       <label style="flex:0 1 220px">Billing month<input type="month" id="nb_month" value="${defMonth()}"></label>
       <button class="b p" onclick="startBill()">Continue</button><button class="b" onclick="S.picking=false;render()">Cancel</button></div>
-    <p class="muted small" style="margin:8px 0 0">The buyer's fixed details and item lines are filled in. You only enter this month's numbers, quantities and rates.</p></div>`;
+    <p class="muted small" style="margin:8px 0 0">The buyer's fixed details and item lines are filled in. You only enter this month's numbers, quantities and rates.</p></div></div>`;
 }
 function billTable(){
   const q = S.bq.toLowerCase();
@@ -439,7 +444,7 @@ function msrRefresh(b){
   (b.items || []).forEach(it => { it.qty = days; it.desc = `Supply of ${b.machine || ''} machine ${mn(b.fromDate)} ${dmy(b.fromDate)} to ${dmy(b.toDate)} working days ${days} days`; msrAmt(it, b); });
 }
 function msrDate(k, v){ if(!v) return; editing[k] = v; msrRefresh(editing); render(); }
-function newBill(){ S.picking = {buyer: db.buyers[0]?.id}; render(); }
+function newBill(){ S.picking = {buyer: db.buyers[0]?.id}; render(); window.scrollTo(0,0); }
 function quickBill(id){ view = 'bills'; S.buyer = null; editing = null; S.picking = {buyer:id}; render(); }
 function startBill(){
   const p = db.buyers.find(x => x.id === $('#nb_buyer').value), m = $('#nb_month').value;
@@ -1103,6 +1108,15 @@ async function cloudLoad(){
     toast('Could not load from Google: ' + e.message, 'err');
   }
   if(!editing && !S.buyer) render();
+}
+async function refreshAll(){
+  if(editing && !confirm('Discard the bill you are editing and refresh?')) return;
+  const bt = $('#rfbtn'); if(bt){ bt.disabled = true; bt.textContent = '↻ Refreshing…'; }
+  editing = null; S.picking = false; S.buyer = null;
+  try{
+    if(cloudOn()) await cloudLoad();
+    else { db = load(); toast('Refreshed from this browser'); }
+  }finally{ if(bt){ bt.disabled = false; bt.textContent = '↻ Refresh'; } render(); }
 }
 async function uploadAll(quiet){
   if(!cloudOn()) return;
